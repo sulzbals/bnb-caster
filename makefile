@@ -6,8 +6,8 @@ PIP := pip3
 .PHONY := install clean purge
 
 venv:
-	#virtualenv -p $(PYTHON) $@
-	$(PYTHON) -m venv $@
+	virtualenv -p $(PYTHON) $@
+	#$(PYTHON) -m venv $@
 
 install: venv
 	source $</bin/activate && $(PIP) install .

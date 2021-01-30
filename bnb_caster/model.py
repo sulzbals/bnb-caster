@@ -1,3 +1,5 @@
+import time
+
 class Node():
   '''
   Nó de uma árvore B&B
@@ -19,29 +21,37 @@ class Node():
     '''
     Função Branch (cria nós filhos)
     '''
+    branches = []
+
     # Se o elenco até o momento é menor do que o número de vagas, novos
     # candidatos podem ser elencados (BRANCH IN):
     if len(self.cast) < self.num_roles:
-      yield self.__class__(
-        self.idx + 1,
-        self.cost + self.candidate.value,
-        self.next_candidates,
-        self.cast + [self.candidate],
-        self.represented | self.candidate.groups,
-        self.num_roles
+      branches.append(
+        self.__class__(
+          self.idx + 1,
+          self.cost + self.candidate.value,
+          self.next_candidates,
+          self.cast + [self.candidate],
+          self.represented | self.candidate.groups,
+          self.num_roles
+        )
       )
 
     # Se o número de vagas não preenchidas é menor do que o número de candidatos
     # restantes, novos candidatos podem ser rejeitados (BRANCH OUT):
     if self.num_roles - len(self.cast) < len(self.next_candidates) + 1:
-      yield self.__class__(
-        self.idx + 1,
-        self.cost,
-        self.next_candidates,
-        self.cast,
-        self.represented,
-        self.num_roles
+      branches.append(
+        self.__class__(
+          self.idx + 1,
+          self.cost,
+          self.next_candidates,
+          self.cast,
+          self.represented,
+          self.num_roles
+        )
       )
+
+    return branches
 
 
 class LazyNode(Node):
@@ -66,11 +76,15 @@ class GreedyNode(Node):
     Função Bound (Define o potencial de encontrar uma solução melhor na
     subárvore)
     '''
-    # Simula o elenco menos custoso possível:
-    sim_cast = self.next_candidates[:self.num_roles-len(self.cast)]
+    if len(self.cast) < self.num_roles:
+      # Simula o elenco menos custoso possível:
+      sim_cast = [self.candidate] + \
+                 self.next_candidates[:self.num_roles-len(self.cast)-1]
 
-    # Retorna o menor custo possível da subárvore:
-    return self.cost + sum(candidate.value for candidate in sim_cast)
+      # Retorna o menor custo possível da subárvore:
+      return self.cost + sum(candidate.value for candidate in sim_cast)
+    else:
+      return self.cost
 
 
 class NodeFactory():
@@ -93,14 +107,16 @@ class Tree():
     self.num_roles = num_roles    # Número de vagas
 
     # Estrutura de pilha (lista) para simular a árvore:
-    self.stack = [
-    ]
+    self.stack = []
 
-  def push(self, node):
+    self.count = 0
+
+  def push(self, nodes):
     '''
-    Empilha nó à pilha que simula a árvore
+    Empilha nós à pilha que simula a árvore
     '''
-    self.stack.insert(0, node)
+    self.stack = nodes + self.stack
+    self.count += len(nodes)
 
   def pop(self):
     '''
@@ -143,22 +159,26 @@ class CastingProblem():
     '''
     Resolve o problema
     '''
+    start = time.perf_counter()
+
     # Nó raiz:
     self.tree.push(
-      self.factory.Node(
-        0,
-        0,
-        self.candidates,
-        [],
-        set(),
-        self.num_roles
-      )
+      [
+        self.factory.Node(
+          0,
+          0,
+          self.candidates,
+          [],
+          set(),
+          self.num_roles
+        )
+      ]
     )
 
     while not self.tree.isEmpty():
       # Percorre o próximo nó:
       node = self.tree.pop()
-
+    
       # Se é um nó folha, pode ser uma solução:
       if node.idx >= len(self.candidates):
         # Se todas as vagas foram preenchidas e todos os grupos foram
@@ -176,7 +196,8 @@ class CastingProblem():
         # Se a subárvore a ser construída tem potencial de resultar em uma
         # solução melhor:
         if bound < self.min_cost:
-          for branched_node in list(node.branch()):
-            self.tree.push(branched_node)
+          self.tree.push(node.branch())
 
-    return self.cast, self.min_cost
+    end = time.perf_counter()
+
+    return self.cast, self.min_cost, self.tree.count, end - start

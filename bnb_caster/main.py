@@ -177,7 +177,7 @@ def main():
     # Usa Greedy Bound (default):
     problem = CastingProblem(actors, groups, n, "Greedy Bound")
 
-  cast, cost = problem.solve()
+  cast, cost, count, time = problem.solve()
 
   cast.sort(key=lambda actor: actor.idx)
 
@@ -193,3 +193,12 @@ def main():
     writer.writeLine(Line.fromInt(cost))
   else:
     writer.writeLine(Line.fromString("Inviável"))
+
+  errWriter = Writer(fp=sys.stderr)
+
+  errWriter.writeLine(
+    Line.fromString(
+      "Nós percorridos: %d/%d" % (count, 2**(m + 1) - 1)
+    )
+  )
+  errWriter.writeLine(Line.fromString("Tempo: %f ms" % (time * 1000)))
