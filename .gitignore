@@ -1,4 +1,5 @@
 elenco
 venv/*
+exemplo*_*.txt
 *.dot
 *.png

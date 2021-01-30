@@ -13,10 +13,10 @@ install: venv
 	source $</bin/activate && $(PIP) install .
 
 elenco: venv install
-	echo "#! /usr/bin/env bash" > elenco
-	echo "source $</bin/activate" >> elenco
-	echo "bnb-cast" >> elenco
-	echo "deactivate" >> elenco
+	echo '#! /usr/bin/env bash' > elenco
+	echo 'source $</bin/activate' >> elenco
+	echo 'bnb-cast $${@:1}' >> elenco
+	echo 'deactivate' >> elenco
 	chmod a+x elenco
 
 clean:

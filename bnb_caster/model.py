@@ -1,15 +1,7 @@
-class Actor():
-  def __init__(self, value, idx):
-    self.value = value
-    self.idx = idx
-
-    self.groups = set()
-
-  def addGroup(self, group):
-    self.groups.add(group)
-
-
 class Node():
+  '''
+  Nó de uma árvore B&B
+  '''
   def __init__(self, idx, cost, candidates, cast, represented, num_roles):
     self.idx = idx                           # Índice do candidato
     self.cost = cost                         # Custo acumulado da árvore
@@ -23,25 +15,14 @@ class Node():
     self.represented = represented           # Grupos representados
     self.num_roles = num_roles               # Número de vagas totais
 
-  def lazy_bound(self):
-    # Retorna o custo acumulado na raiz da subárvore:
-    return self.cost
-
-  def greedy_bound(self):
-    # Simula o elenco menos custoso possível:
-    sim_cast = self.next_candidates[:self.num_roles-len(self.cast)]
-
-    # Retorna o menor custo possível da subárvore:
-    return self.cost + sum(candidate.value for candidate in sim_cast)
-
-  # Greedy Bound é a função padrão:
-  bound = lazy_bound
-
   def branch(self):
+    '''
+    Função Branch (cria nós filhos)
+    '''
     # Se o elenco até o momento é menor do que o número de vagas, novos
     # candidatos podem ser elencados (BRANCH IN):
     if len(self.cast) < self.num_roles:
-      yield Node(
+      yield self.__class__(
         self.idx + 1,
         self.cost + self.candidate.value,
         self.next_candidates,
@@ -53,7 +34,7 @@ class Node():
     # Se o número de vagas não preenchidas é menor do que o número de candidatos
     # restantes, novos candidatos podem ser rejeitados (BRANCH OUT):
     if self.num_roles - len(self.cast) < len(self.next_candidates) + 1:
-      yield Node(
+      yield self.__class__(
         self.idx + 1,
         self.cost,
         self.next_candidates,
@@ -62,55 +43,89 @@ class Node():
         self.num_roles
       )
 
-  def __str__(self):
-    try:
-      return "({}/{}) Custo: {}, Grupos: {}".format(
-        self.idx,
-        self.candidate.idx,
-        self.cost,
-        self.represented
-      )
-    except AttributeError:
-      return "({}) Custo: {}, Grupos: {}".format(
-        self.idx,
-        self.cost,
-        self.represented
-      )
+
+class LazyNode(Node):
+  '''
+  Nó de uma árvore B&B utilizando Lazy Bound
+  '''
+  def bound(self):
+    '''
+    Função Bound (Define o potencial de encontrar uma solução melhor na
+    subárvore)
+    '''
+    # Retorna o custo acumulado na raiz da subárvore:
+    return self.cost
+
+
+class GreedyNode(Node):
+  '''
+  Nó de uma árvore B&B utilizando Greedy Bound
+  '''
+  def bound(self):
+    '''
+    Função Bound (Define o potencial de encontrar uma solução melhor na
+    subárvore)
+    '''
+    # Simula o elenco menos custoso possível:
+    sim_cast = self.next_candidates[:self.num_roles-len(self.cast)]
+
+    # Retorna o menor custo possível da subárvore:
+    return self.cost + sum(candidate.value for candidate in sim_cast)
+
+
+class NodeFactory():
+  '''
+  Fábrica de nós (instancia pela função bound selecionada)
+  '''
+  def __init__(self, bound):
+    if bound == "Lazy Bound":
+      self.Node = LazyNode
+    else:
+      self.Node = GreedyNode
 
 
 class Tree():
+  '''
+  Árvore B&B
+  '''
   def __init__(self, candidates, num_roles):
     self.candidates = candidates  # Candidatos
     self.num_roles = num_roles    # Número de vagas
 
-    # Estrutura de fila (lista) para emular a árvore:
-    self.queue = [
-      # Nó raiz:
-      Node(
-        0,
-        0,
-        self.candidates,
-        [],
-        set(),
-        self.num_roles
-      )
+    # Estrutura de pilha (lista) para simular a árvore:
+    self.stack = [
     ]
 
   def push(self, node):
-    self.queue.insert(0, node)
+    '''
+    Empilha nó à pilha que simula a árvore
+    '''
+    self.stack.insert(0, node)
 
   def pop(self):
-    return self.queue.pop(0)
+    '''
+    Desempilha nó da pilha que simula a árvore
+    '''
+    return self.stack.pop(0)
 
   def isEmpty(self):
-    return not self.queue
+    '''
+    Checa se a pilha está vazia
+    '''
+    return not self.stack
 
 
 class CastingProblem():
-  def __init__(self, candidates, groups, num_roles):
+  '''
+  Problema do Elenco Representativo
+  '''
+  def __init__(self, candidates, groups, num_roles, bound):
     self.candidates = candidates  # Candidatos
     self.groups = groups          # Grupos
     self.num_roles = num_roles    # Número de vagas
+
+    # Instancia fábrica de nós de acordo com a função bound escolhida:
+    self.factory = NodeFactory(bound)
 
     # Custo mínimo (ótimo) inicializado com valor não plausível:
     self.min_cost = sum([candidate.value for candidate in self.candidates]) + 1
@@ -118,13 +133,28 @@ class CastingProblem():
     # Ordena os candidatos por valor (custo):
     self.candidates.sort(key=lambda candidate: candidate.value)
 
-    # Lista de candidatos elencados
+    # Lista de candidatos elencados:
     self.cast = []
 
     # Árvore a ser construída:
     self.tree = Tree(self.candidates, self.num_roles)
 
   def solve(self):
+    '''
+    Resolve o problema
+    '''
+    # Nó raiz:
+    self.tree.push(
+      self.factory.Node(
+        0,
+        0,
+        self.candidates,
+        [],
+        set(),
+        self.num_roles
+      )
+    )
+
     while not self.tree.isEmpty():
       # Percorre o próximo nó:
       node = self.tree.pop()

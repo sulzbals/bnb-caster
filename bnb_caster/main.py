@@ -1,7 +1,8 @@
 import os
 import sys
 
-from bnb_caster.model import Actor, CastingProblem
+from bnb_caster.struct import Actor
+from bnb_caster.model import CastingProblem
 
 class InvalidInput(Exception):
   '''
@@ -168,7 +169,13 @@ def main():
       # Lê índice do grupo que o ator faz parte:
       actor.addGroup(parser.getLine(1).toInt())
 
-  problem = CastingProblem(actors, groups, n)
+  # Se a função bound secundária é selecionada:
+  if "-a" in sys.argv[1:]:
+    # Troca função bound default (Greedy Bound) para Lazy Bound:
+    problem = CastingProblem(actors, groups, n, "Lazy Bound")
+  else:
+    # Usa Greedy Bound (default):
+    problem = CastingProblem(actors, groups, n, "Greedy Bound")
 
   cast, cost = problem.solve()
 
@@ -186,6 +193,3 @@ def main():
     writer.writeLine(Line.fromInt(cost))
   else:
     writer.writeLine(Line.fromString("Inviável"))
-
-if __name__ == "__main__":
-  main()
