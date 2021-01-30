@@ -2,123 +2,151 @@ class Actor():
   def __init__(self, value, idx):
     self.value = value
     self.idx = idx
-    self.groups = []
 
-  def appendGroup(self, group):
-    self.groups.append(group)
+    self.groups = set()
 
-  def __str__(self):
-    return "Actor Object (Value: {}, Groups: {}, Index: {})".format(
-      self.value,
-      self.groups,
-      self.idx
-    )
+  def addGroup(self, group):
+    self.groups.add(group)
 
 
 class Node():
-  def __init__(self, actor, cost, rejections, cast, represented, idx):
-    self.actor = actor
-    self.cost = cost
-    self.rejections = rejections
-    self.cast = cast
-    self.represented = represented
-    self.idx = idx
+  def __init__(self, idx, cost, candidates, cast, represented, num_roles):
+    self.idx = idx                           # Índice do candidato
+    self.cost = cost                         # Custo acumulado da árvore
+    try:
+      self.candidate = candidates[0]         # Candidato representado
+      self.next_candidates = candidates[1:]  # Próximos candidatos na fila
+    except IndexError:
+      self.candidate = None                  # Candidato representado
+      self.next_candidates = []              # Próximos candidatos na fila
+    self.cast = cast                         # Candidatos elencados
+    self.represented = represented           # Grupos representados
+    self.num_roles = num_roles               # Número de vagas totais
 
-  @staticmethod
-  def root(actor):
-    return Node(
-      actor,      # Primeiro ator da fila
-      0,          # Custo inicial é nulo
-      0,          # Nenhuma rejeição
-      [],         # Nenhum ator elencado
-      [],         # Nenhum grupo representado
-      0           # Índice (nível) 0
-    )
+  def lazy_bound(self):
+    # Retorna o custo acumulado na raiz da subárvore:
+    return self.cost
 
-  def bound(self, next_actors, num_characters):
-    # Extrai valores dos próximos candidatos:
-    values = [actor.value for actor in next_actors]
+  def greedy_bound(self):
+    # Simula o elenco menos custoso possível:
+    sim_cast = self.next_candidates[:self.num_roles-len(self.cast)]
 
-    # Obtém a combinação de elenco de menor custo (independente da solução):
-    values = values[:num_characters - len(self.cast)]
+    # Retorna o menor custo possível da subárvore:
+    return self.cost + sum(candidate.value for candidate in sim_cast)
 
-    # Retorna o menor custo possível dentro da subárvore:
-    return self.cost + sum(values)
+  # Greedy Bound é a função padrão:
+  bound = lazy_bound
 
-  def branch(self, next_actor, num_characters, num_rejections, num_actors):
-    # Se o elenco até o momento é menor do que o número de personagens:
-    if len(self.cast) < num_characters:
+  def branch(self):
+    # Se o elenco até o momento é menor do que o número de vagas, novos
+    # candidatos podem ser elencados (BRANCH IN):
+    if len(self.cast) < self.num_roles:
       yield Node(
-        next_actor,
-        self.cost + self.actor.value,
-        self.rejections,
-        self.cast + [self.actor],
-        list(set(self.represented) | set(self.actor.groups)),
-        self.idx + 1
+        self.idx + 1,
+        self.cost + self.candidate.value,
+        self.next_candidates,
+        self.cast + [self.candidate],
+        self.represented | self.candidate.groups,
+        self.num_roles
       )
 
-    # Se ainda não foram feitas o máximo de rejeições:
-    if self.rejections < num_rejections:
+    # Se o número de vagas não preenchidas é menor do que o número de candidatos
+    # restantes, novos candidatos podem ser rejeitados (BRANCH OUT):
+    if self.num_roles - len(self.cast) < len(self.next_candidates) + 1:
       yield Node(
-        next_actor,
+        self.idx + 1,
         self.cost,
-        self.rejections + 1,
+        self.next_candidates,
         self.cast,
         self.represented,
-        self.idx + 1
+        self.num_roles
       )
+
+  def __str__(self):
+    try:
+      return "({}/{}) Custo: {}, Grupos: {}".format(
+        self.idx,
+        self.candidate.idx,
+        self.cost,
+        self.represented
+      )
+    except AttributeError:
+      return "({}) Custo: {}, Grupos: {}".format(
+        self.idx,
+        self.cost,
+        self.represented
+      )
+
+
+class Tree():
+  def __init__(self, candidates, num_roles):
+    self.candidates = candidates  # Candidatos
+    self.num_roles = num_roles    # Número de vagas
+
+    # Estrutura de fila (lista) para emular a árvore:
+    self.queue = [
+      # Nó raiz:
+      Node(
+        0,
+        0,
+        self.candidates,
+        [],
+        set(),
+        self.num_roles
+      )
+    ]
+
+  def push(self, node):
+    self.queue.insert(0, node)
+
+  def pop(self):
+    return self.queue.pop(0)
+
+  def isEmpty(self):
+    return not self.queue
 
 
 class CastingProblem():
-  def __init__(self, actors, characters, groups):
-    self.actors = actors
-    self.characters = characters
-    self.groups = set(groups)
+  def __init__(self, candidates, groups, num_roles):
+    self.candidates = candidates  # Candidatos
+    self.groups = groups          # Grupos
+    self.num_roles = num_roles    # Número de vagas
 
-    self.num_actors = len(actors)
-    self.num_characters = len(characters)
-    self.num_rejections = len(actors) - len(characters)
-    self.min_cost = sum([actor.value for actor in actors]) + 1
+    # Custo mínimo (ótimo) inicializado com valor não plausível:
+    self.min_cost = sum([candidate.value for candidate in self.candidates]) + 1
+
+    # Ordena os candidatos por valor (custo):
+    self.candidates.sort(key=lambda candidate: candidate.value)
+
+    # Lista de candidatos elencados
     self.cast = []
 
-    self.actors.sort(key=lambda actor: actor.value)
-
-    self.tree = []
+    # Árvore a ser construída:
+    self.tree = Tree(self.candidates, self.num_roles)
 
   def solve(self):
-    self.tree.append(Node.root(self.actors[0]))
+    while not self.tree.isEmpty():
+      # Percorre o próximo nó:
+      node = self.tree.pop()
 
-    while self.tree:
-      node = self.tree.pop(0)
-
-      # Se é um nó folha:
-      if node.idx >= self.num_actors:
-        # Se todos os grupos foram representados:
-        if set(node.represented) == self.groups:
-          # Se o custo da combinação atual é menor que o menor custo até então:
+      # Se é um nó folha, pode ser uma solução:
+      if node.idx >= len(self.candidates):
+        # Se todas as vagas foram preenchidas e todos os grupos foram
+        # representados, é uma solução plausível:
+        if len(node.cast) == self.num_roles and node.represented == self.groups:
+          # Se a solução (custo) atual é melhor que a solução ótima até então,
+          # esta é a nova solução ótima:
           if node.cost < self.min_cost:
             self.cast = node.cast
             self.min_cost = node.cost
       else:
-        # Obtém bound:
-        bound = node.bound(
-          self.actors[:node.idx + 1],
-          self.num_characters
-        )
+        # Obtém valor da função bound:
+        bound = node.bound()
 
+        # Se a subárvore a ser construída tem potencial de resultar em uma
+        # solução melhor:
         if bound < self.min_cost:
-          try:
-            actor = self.actors[node.idx + 1]
-          except IndexError:
-            actor = None
-
-          self.tree = list(
-            node.branch(
-              actor,
-              self.num_characters,
-              self.num_rejections,
-              self.num_actors
-            )
-          ) + self.tree
+          for branched_node in list(node.branch()):
+            self.tree.push(branched_node)
 
     return self.cast, self.min_cost

@@ -150,8 +150,7 @@ def main():
   l, m, n = parser.getLine(3).toInt()
 
   actors = []
-  characters = range(1, n+1)
-  groups = range(1, l+1)
+  groups = set(range(1, l+1))
 
   # Para cada ator [1..m]:
   for idx in range(m):
@@ -167,9 +166,9 @@ def main():
     # Para cada grupo [1..s]:
     for _ in range(s):
       # Lê índice do grupo que o ator faz parte:
-      actor.appendGroup(parser.getLine(1).toInt())
+      actor.addGroup(parser.getLine(1).toInt())
 
-  problem = CastingProblem(actors, characters, groups)
+  problem = CastingProblem(actors, groups, n)
 
   cast, cost = problem.solve()
 

@@ -1,0 +1,4 @@
+elenco
+venv/*
+*.dot
+*.png
